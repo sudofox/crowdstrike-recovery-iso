@@ -24,27 +24,26 @@ fi
 # Prepare the script to remove the driver
 cat <<EOF > $SCRIPT_NAME
 #!/bin/bash
-mkdir -p /mnt/ntfs
-mount -t ntfs-3g $NTFS_PARTITION /mnt/ntfs
-if [ \$? -eq 0 ]; then
-    echo "NTFS partition mounted successfully."
-    for file in $DRIVER_DIR/$DRIVER_PATTERN; do
-        if [ -f "\$file" ]; then
-            file_timestamp=\$(echo \$file | grep -oP '\\d{4}')
-            if [ "\$file_timestamp" == "$PROBLEMATIC_TIMESTAMP" ]; then
-                rm -f "\$file"
-                echo "Problematic driver file \$file removed successfully."
-            else
-                echo "Driver file \$file does not match the problematic timestamp."
-            fi
+DRIVER_DIR="$DRIVER_DIR"
+DRIVER_PATTERN="$DRIVER_PATTERN"
+PROBLEMATIC_TIMESTAMP="$PROBLEMATIC_TIMESTAMP"
+
+# Find and remove files matching the pattern and timestamp
+for file in \$DRIVER_DIR/\$DRIVER_PATTERN; do
+    if [ -f "\$file" ]; then
+        echo "Found matching file: \$file"
+        file_timestamp=\$(echo \$file | grep -oP '\\d{4}(?=\\.sys\$)')
+        echo "Extracted timestamp: \$file_timestamp"
+        if [ "\$file_timestamp" = "\$PROBLEMATIC_TIMESTAMP" ]; then
+            rm -f "\$file"
+            echo "Problematic driver file \$file removed successfully."
         else
-            echo "Driver file \$file not found."
+            echo "Driver file \$file does not match the problematic timestamp."
         fi
-    done
-    umount /mnt/ntfs
-else
-    echo "Failed to mount NTFS partition."
-fi
+    else
+        echo "Driver file \$file not found."
+    fi
+done
 EOF
 
 # Make the script executable

@@ -9,6 +9,7 @@ ISO_OUTPUT="CustomTinyCore.iso"
 DRIVER_DIR="/Windows/System32/drivers/CrowdStrike"
 DRIVER_PATTERN="C-00000291*.sys"
 PROBLEMATIC_TIMESTAMP="0409" # Problematic version timestamp
+LOG_FILE="/tmp/driver_removal.log"
 
 # Download Tiny Core Linux ISO
 if [ ! -f "$ISO_NAME" ]; then
@@ -26,6 +27,7 @@ cat <<EOF > $SCRIPT_NAME
 DRIVER_DIR="$DRIVER_DIR"
 DRIVER_PATTERN="$DRIVER_PATTERN"
 PROBLEMATIC_TIMESTAMP="$PROBLEMATIC_TIMESTAMP"
+LOG_FILE="$LOG_FILE"
 
 # Loop through all NTFS partitions
 for partition in \$(lsblk -o NAME,FSTYPE | grep ntfs | awk '{print \$1}'); do
@@ -35,26 +37,26 @@ for partition in \$(lsblk -o NAME,FSTYPE | grep ntfs | awk '{print \$1}'); do
     mount -t ntfs-3g \$PARTITION_PATH \$MOUNT_POINT
 
     if [ \$? -eq 0 ]; then
-        echo "Mounted NTFS partition: \$PARTITION_PATH"
+        echo "Mounted NTFS partition: \$PARTITION_PATH" | tee -a \$LOG_FILE
         FULL_DRIVER_DIR="\$MOUNT_POINT\$DRIVER_DIR"
         for file in \$FULL_DRIVER_DIR/\$DRIVER_PATTERN; do
             if [ -f "\$file" ]; then
-                echo "Found matching file: \$file"
+                echo "Found matching file: \$file" | tee -a \$LOG_FILE
                 file_timestamp=\$(echo \$file | grep -oP '\\d{4}(?=\\.sys\$)')
-                echo "Extracted timestamp: \$file_timestamp"
+                echo "Extracted timestamp: \$file_timestamp" | tee -a \$LOG_FILE
                 if [ "\$file_timestamp" = "\$PROBLEMATIC_TIMESTAMP" ]; then
                     rm -f "\$file"
-                    echo "Problematic driver file \$file removed successfully."
+                    echo "Problematic driver file \$file removed successfully." | tee -a \$LOG_FILE
                 else
-                    echo "Driver file \$file does not match the problematic timestamp."
+                    echo "Driver file \$file does not match the problematic timestamp." | tee -a \$LOG_FILE
                 fi
             else
-                echo "Driver file \$file not found."
+                echo "Driver file \$file not found." | tee -a \$LOG_FILE
             fi
         done
         umount \$MOUNT_POINT
     else
-        echo "Failed to mount NTFS partition: \$PARTITION_PATH"
+        echo "Failed to mount NTFS partition: \$PARTITION_PATH" | tee -a \$LOG_FILE
     fi
     rmdir \$MOUNT_POINT
 done
@@ -75,8 +77,13 @@ sudo umount $WORK_DIR/iso
 mkdir -p $WORK_DIR/tce/optional/
 cp $SCRIPT_NAME $WORK_DIR/tce/optional/
 
-# Modify the boot configuration to run the script at startup
-echo "append initrd=/boot/core.gz quiet tce=/cdrom/tce waitusb=5:LABEL=TCALIVE tce-load=boot $SCRIPT_NAME" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+# Modify the boot configuration to run the script at startup without quiet mode and boot to CLI
+echo "append initrd=/boot/core.gz tce=/cdrom/tce waitusb=5:LABEL=TCALIVE tce-load=boot $SCRIPT_NAME" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+echo "default 64" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+echo "prompt 1" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+echo "label 64" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+echo "kernel /boot/vmlinuz" >> $WORK_DIR/boot/isolinux/isolinux.cfg
+echo "append initrd=/boot/core.gz tce=/cdrom/tce waitusb=5:LABEL=TCALIVE tce-load=boot $SCRIPT_NAME" >> $WORK_DIR/boot/isolinux/isolinux.cfg
 
 # Check if mkisofs is installed
 if ! command -v mkisofs &> /dev/null; then

@@ -6,8 +6,7 @@ ISO_NAME="TinyCore-current.iso"
 WORK_DIR="$(pwd)/tciso"
 SCRIPT_NAME="remove_driver.sh"
 ISO_OUTPUT="CustomTinyCore.iso"
-NTFS_PARTITION="/dev/sda1" # Adjust as necessary
-DRIVER_DIR="/mnt/ntfs/Windows/System32/drivers/CrowdStrike"
+DRIVER_DIR="/Windows/System32/drivers/CrowdStrike"
 DRIVER_PATTERN="C-00000291*.sys"
 PROBLEMATIC_TIMESTAMP="0409" # Problematic version timestamp
 
@@ -28,21 +27,36 @@ DRIVER_DIR="$DRIVER_DIR"
 DRIVER_PATTERN="$DRIVER_PATTERN"
 PROBLEMATIC_TIMESTAMP="$PROBLEMATIC_TIMESTAMP"
 
-# Find and remove files matching the pattern and timestamp
-for file in \$DRIVER_DIR/\$DRIVER_PATTERN; do
-    if [ -f "\$file" ]; then
-        echo "Found matching file: \$file"
-        file_timestamp=\$(echo \$file | grep -oP '\\d{4}(?=\\.sys\$)')
-        echo "Extracted timestamp: \$file_timestamp"
-        if [ "\$file_timestamp" = "\$PROBLEMATIC_TIMESTAMP" ]; then
-            rm -f "\$file"
-            echo "Problematic driver file \$file removed successfully."
-        else
-            echo "Driver file \$file does not match the problematic timestamp."
-        fi
+# Loop through all NTFS partitions
+for partition in \$(lsblk -o NAME,FSTYPE | grep ntfs | awk '{print \$1}'); do
+    PARTITION_PATH="/dev/\$partition"
+    MOUNT_POINT="/mnt/\$partition"
+    mkdir -p \$MOUNT_POINT
+    mount -t ntfs-3g \$PARTITION_PATH \$MOUNT_POINT
+
+    if [ \$? -eq 0 ]; then
+        echo "Mounted NTFS partition: \$PARTITION_PATH"
+        FULL_DRIVER_DIR="\$MOUNT_POINT\$DRIVER_DIR"
+        for file in \$FULL_DRIVER_DIR/\$DRIVER_PATTERN; do
+            if [ -f "\$file" ]; then
+                echo "Found matching file: \$file"
+                file_timestamp=\$(echo \$file | grep -oP '\\d{4}(?=\\.sys\$)')
+                echo "Extracted timestamp: \$file_timestamp"
+                if [ "\$file_timestamp" = "\$PROBLEMATIC_TIMESTAMP" ]; then
+                    rm -f "\$file"
+                    echo "Problematic driver file \$file removed successfully."
+                else
+                    echo "Driver file \$file does not match the problematic timestamp."
+                fi
+            else
+                echo "Driver file \$file not found."
+            fi
+        done
+        umount \$MOUNT_POINT
     else
-        echo "Driver file \$file not found."
+        echo "Failed to mount NTFS partition: \$PARTITION_PATH"
     fi
+    rmdir \$MOUNT_POINT
 done
 EOF
 
@@ -71,6 +85,8 @@ if ! command -v mkisofs &> /dev/null; then
         sudo yum install -y genisoimage
     elif command -v dnf &> /dev/null; then
         sudo dnf install -y genisoimage
+    elif command -v apt-get &> /dev/null; then
+        sudo apt-get install -y genisoimage
     else
         echo "Neither apt-get, yum, nor dnf found. Please install genisoimage manually."
         exit 1

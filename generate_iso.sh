@@ -67,9 +67,9 @@ chmod +x $SCRIPT_NAME
 mkdir -p $WORK_DIR
 
 # Extract the Tiny Core Linux ISO
-sudo mount -o loop $ISO_NAME /mnt
-cp -r /mnt/* $WORK_DIR/
-sudo umount /mnt
+sudo mount -o loop $ISO_NAME $WORK_DIR/iso
+cp -r $WORK_DIR/iso/* $WORK_DIR/
+sudo umount $WORK_DIR/iso
 
 # Add the script to Tiny Core Linux
 mkdir -p $WORK_DIR/tce/optional/

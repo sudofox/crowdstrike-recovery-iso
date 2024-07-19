@@ -65,8 +65,8 @@ EOF
 # Make the script executable
 chmod +x $SCRIPT_NAME
 
-# Create working directory
-mkdir -p $WORK_DIR
+# Create work dir and also iso dir
+mkdir -p $WORK_DIR/iso
 
 # Extract the Tiny Core Linux ISO
 sudo mount -o loop $ISO_NAME $WORK_DIR/iso
